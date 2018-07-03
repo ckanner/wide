@@ -29,71 +29,83 @@ package log
 import (
 	"fmt"
 	"io"
-	stdlog "log"
+	golog "log"
+	"os"
 	"strings"
 )
 
 // Logging level.
 const (
-	Off = iota
-	Trace
-	Debug
-	Info
-	Warn
-	Error
+	OFF = iota
+	TRACE
+	DEBUG
+	INFO
+	WARN
+	ERROR
 )
 
-// all loggers.
-var loggers []*Logger
+// defaultLogger prints message to the stdout.
+var defaultLogger = &Logger{
+	level: INFO,
+	trace: golog.New(os.Stdout, "[TRACE] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+	debug: golog.New(os.Stdout, "[DEBUG] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+	info:  golog.New(os.Stdout, "[INFO] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+	warn:  golog.New(os.Stdout, "[WARN] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+	error: golog.New(os.Stdout, "[ERROR] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+	depth: 3,
+}
 
-// the global default logging level, it will be used for creating logger.
-var logLevel = Debug
-
-// Logger represents a simple logger with level.
-// The underlying logger is the standard Go logging "log".
+// Logger represents a simple defaultLogger with level.
+// The inline logger is the standard Go logging "log".
 type Logger struct {
-	level  int
-	logger *stdlog.Logger
+	level int
+	trace *golog.Logger
+	debug *golog.Logger
+	info  *golog.Logger
+	warn  *golog.Logger
+	error *golog.Logger
+	// logger *golog.Logger
+	depth int
 }
 
 // NewLogger creates a logger.
 func NewLogger(out io.Writer) *Logger {
-	ret := &Logger{level: logLevel, logger: stdlog.New(out, "", stdlog.Ldate|stdlog.Ltime|stdlog.Lshortfile)}
-
-	loggers = append(loggers, ret)
-
-	return ret
-}
-
-// SetLevel sets the logging level of all loggers.
-func SetLevel(level string) {
-	logLevel = getLevel(level)
-
-	for _, l := range loggers {
-		l.SetLevel(level)
+	logger := &Logger{
+		level: INFO,
+		trace: golog.New(out, "[TRACE] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+		debug: golog.New(out, "[DEBUG] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+		info:  golog.New(out, "[INFO] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+		warn:  golog.New(out, "[WARN] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+		error: golog.New(out, "[ERROR] ", golog.Ldate|golog.Ltime|golog.Lshortfile),
+		depth: 2,
 	}
+	return logger
 }
 
-// getLevel gets logging level int value corresponding to the specified level.
+// getLevel gets the logging level int value corresponding to the specified level.
 func getLevel(level string) int {
 	level = strings.ToLower(level)
-
 	switch level {
 	case "off":
-		return Off
+		return OFF
 	case "trace":
-		return Trace
+		return TRACE
 	case "debug":
-		return Debug
+		return DEBUG
 	case "info":
-		return Info
+		return INFO
 	case "warn":
-		return Warn
+		return WARN
 	case "error":
-		return Error
+		return ERROR
 	default:
-		return Info
+		return INFO
 	}
+}
+
+// SetLevel sets the logging level of the default logger.
+func SetLevel(level string) {
+	defaultLogger.SetLevel(level)
 }
 
 // SetLevel sets the logging level of a logger.
@@ -101,117 +113,166 @@ func (l *Logger) SetLevel(level string) {
 	l.level = getLevel(level)
 }
 
+// SetOutput sets the writer of the default logger.
+func SetOutput(w io.Writer) {
+	defaultLogger.trace.SetOutput(w)
+	defaultLogger.debug.SetOutput(w)
+	defaultLogger.info.SetOutput(w)
+	defaultLogger.warn.SetOutput(w)
+	defaultLogger.error.SetOutput(w)
+}
+
 // IsTraceEnabled determines whether the trace level is enabled.
 func (l *Logger) IsTraceEnabled() bool {
-	return l.level <= Trace
+	return l.level <= TRACE
 }
 
 // IsDebugEnabled determines whether the debug level is enabled.
 func (l *Logger) IsDebugEnabled() bool {
-	return l.level <= Debug
+	return l.level <= DEBUG
 }
 
-// IsWarnEnabled determines whether the debug level is enabled.
+// IsInfoEnabled determines whether the info level is enabled.
+func (l *Logger) IsInfoEnabled() bool {
+	return l.level <= INFO
+}
+
+// IsWarnEnabled determines whether the warn level is enabled.
 func (l *Logger) IsWarnEnabled() bool {
-	return l.level <= Warn
+	return l.level <= WARN
 }
 
-// Trace prints trace level message.
+// IsErrorEnabled determines whether the error level is enabled.
+func (l *Logger) IsErrorEnabled() bool {
+	return l.level <= ERROR
+}
+
+// Trace prints trace level message of the default logger.
+func Trace(v ...interface{}) {
+	defaultLogger.Trace(v...)
+}
+
+// TRACE prints trace level message.
 func (l *Logger) Trace(v ...interface{}) {
-	if Trace < l.level {
+	if !l.IsTraceEnabled() {
 		return
 	}
+	l.trace.Output(l.depth, fmt.Sprint(v...))
+}
 
-	l.logger.SetPrefix("T ")
-	l.logger.Output(2, fmt.Sprint(v...))
+// Tracef prints trace level message of the default logger with format.
+func Tracef(format string, v ...interface{}) {
+	defaultLogger.Tracef(format, v...)
 }
 
 // Tracef prints trace level message with format.
 func (l *Logger) Tracef(format string, v ...interface{}) {
-	if Trace < l.level {
+	if !l.IsTraceEnabled() {
 		return
 	}
-
-	l.logger.SetPrefix("T ")
-	l.logger.Output(2, fmt.Sprintf(format, v...))
+	l.trace.Output(l.depth, fmt.Sprintf(format, v...))
 }
 
-// Debug prints debug level message.
+// Debug prints debug level message of the default logger.
+func Debug(v ...interface{}) {
+	defaultLogger.Debug(v...)
+}
+
+// DEBUG prints debug level message.
 func (l *Logger) Debug(v ...interface{}) {
-	if Debug < l.level {
+	if !l.IsDebugEnabled() {
 		return
 	}
+	l.debug.Output(l.depth, fmt.Sprint(v...))
+}
 
-	l.logger.SetPrefix("D ")
-	l.logger.Output(2, fmt.Sprint(v...))
+// Debugf prints debug level message of the default logger with format.
+func Debugf(format string, v ...interface{}) {
+	defaultLogger.Debugf(format, v...)
 }
 
 // Debugf prints debug level message with format.
 func (l *Logger) Debugf(format string, v ...interface{}) {
-	if Debug < l.level {
+	if !l.IsDebugEnabled() {
 		return
 	}
-
-	l.logger.SetPrefix("D ")
-	l.logger.Output(2, fmt.Sprintf(format, v...))
+	l.debug.Output(l.depth, fmt.Sprintf(format, v...))
 }
 
-// Info prints info level message.
+// Info prints info level message of the default logger.
+func Info(v ...interface{}) {
+	defaultLogger.Info(v...)
+}
+
+// INFO prints info level message.
 func (l *Logger) Info(v ...interface{}) {
-	if Info < l.level {
+	if !l.IsInfoEnabled() {
 		return
 	}
+	l.info.Output(l.depth, fmt.Sprint(v...))
+}
 
-	l.logger.SetPrefix("I ")
-	l.logger.Output(2, fmt.Sprint(v...))
+// Infof prints info level message of the default logger with format.
+func Infof(format string, v ...interface{}) {
+	defaultLogger.Infof(format, v...)
 }
 
 // Infof prints info level message with format.
 func (l *Logger) Infof(format string, v ...interface{}) {
-	if Info < l.level {
+	if !l.IsInfoEnabled() {
 		return
 	}
-
-	l.logger.SetPrefix("I ")
-	l.logger.Output(2, fmt.Sprintf(format, v...))
+	l.info.Output(l.depth, fmt.Sprintf(format, v...))
 }
 
-// Warn prints warning level message.
+// Warn prints warn level message of the default logger.
+func Warn(v ...interface{}) {
+	defaultLogger.Warn(v...)
+}
+
+// Warn prints warn level message.
 func (l *Logger) Warn(v ...interface{}) {
-	if Warn < l.level {
+	if !l.IsWarnEnabled() {
 		return
 	}
-
-	l.logger.SetPrefix("W ")
-	l.logger.Output(2, fmt.Sprint(v...))
+	l.warn.Output(l.depth, fmt.Sprint(v...))
 }
 
-// Warn prints warning level message with format.
+// Warnf prints warn level message of the default logger with format.
+func Warnf(format string, v ...interface{}) {
+	defaultLogger.Warnf(format, v...)
+}
+
+// Warnf prints warn level message with format.
 func (l *Logger) Warnf(format string, v ...interface{}) {
-	if Warn < l.level {
+	if !l.IsWarnEnabled() {
 		return
 	}
-
-	l.logger.SetPrefix("W ")
-	l.logger.Output(2, fmt.Sprintf(format, v...))
+	l.warn.Output(l.depth, fmt.Sprintf(format, v...))
 }
 
-// Error prints error level message.
+// Error prints error level message of the default logger.
+func Error(v ...interface{}) {
+	defaultLogger.Error(v...)
+}
+
+// ERROR prints error level message.
 func (l *Logger) Error(v ...interface{}) {
-	if Error < l.level {
+	if !l.IsErrorEnabled() {
 		return
 	}
+	l.error.Output(l.depth, fmt.Sprint(v...))
+}
 
-	l.logger.SetPrefix("E ")
-	l.logger.Output(2, fmt.Sprint(v...))
+// Errorf prints error level message of the default logger withe format.
+func Errorf(format string, v ...interface{}) {
+	defaultLogger.Errorf(format, v...)
 }
 
 // Errorf prints error level message with format.
 func (l *Logger) Errorf(format string, v ...interface{}) {
-	if Error < l.level {
+	if !l.IsErrorEnabled() {
 		return
 	}
-
-	l.logger.SetPrefix("E ")
-	l.logger.Output(2, fmt.Sprintf(format, v...))
+	l.error.Output(l.depth, fmt.Sprintf(format, v...))
 }
